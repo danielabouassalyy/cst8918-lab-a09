@@ -1,0 +1,11 @@
+# Node
+node_modules/
+
+# Terraform
+infra/.terraform/
+
+# Husky temp
+.husky/_/
+
+# IDE
+.vscode/

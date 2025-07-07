@@ -1,0 +1,66 @@
+name: Validate Terraform CI
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  fmt-check:
+    runs-on: ubuntu-latest
+    name: Check terraform fmt
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Fetch changed files
+        id: pr_files
+        uses: jitterbit/get-changed-files@v1
+        with:
+          format: "space-delimited"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.2.0
+
+      - name: Validate fmt on changed files
+        run: |
+          set +e
+          echo "CHECK_STATUS=0" >> $GITHUB_ENV
+
+          for file in ${{ steps.pr_files.outputs.added_modified }}; do
+            if [[ $file == infra/*.tf ]]; then
+              terraform fmt -check "$file"
+              if [[ $? -ne 0 ]]; then
+                echo "❌ terraform fmt failed on $file" >> $GITHUB_STEP_SUMMARY
+                echo "CHECK_STATUS=1" >> $GITHUB_ENV
+              fi
+            fi
+          done
+
+      - name: Exit with status
+        if: always()
+        run: exit $CHECK_STATUS
+
+  tf-validate:
+    needs: fmt-check
+    runs-on: ubuntu-latest
+    name: Terraform init & validate
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.2.0
+
+      - name: Terraform init (no backend)
+        run: terraform -chdir=infra init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=infra validate
